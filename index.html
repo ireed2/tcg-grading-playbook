@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCG Grading Compass — EV Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── RESET & BASE ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #13161e;
+    --card:      #181c27;
+    --border:    #252a38;
+    --border2:   #2e3548;
+    --text:      #e8eaf0;
+    --text2:     #8b90a8;
+    --text3:     #555c78;
+    --gold:      #c8a84b;
+    --gold-dim:  #7a6229;
+    --gold-glow: rgba(200,168,75,0.12);
+    --green:     #3ecf8e;
+    --green-bg:  rgba(62,207,142,0.08);
+    --red:       #f06057;
+    --red-bg:    rgba(240,96,87,0.08);
+    --blue:      #5b8ef0;
+    --blue-bg:   rgba(91,142,240,0.08);
+    --amber:     #f0a030;
+    --amber-bg:  rgba(240,160,48,0.08);
+    --radius:    10px;
+    --radius-lg: 16px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── BACKGROUND TEXTURE ───────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 0%, rgba(200,168,75,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(91,142,240,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── LAYOUT ───────────────────────────────────────────── */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── HEADER ───────────────────────────────────────────── */
+  header {
+    padding: 52px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-eyebrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--gold-dim);
+    max-width: 60px;
+  }
+
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .header-sub {
+    color: var(--text2);
+    font-size: 15px;
+    font-weight: 300;
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  /* ── PROGRESS BAR ─────────────────────────────────────── */
+  .progress-wrap {
+    margin-bottom: 36px;
+  }
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .progress-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .progress-step {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--gold);
+  }
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── PHASE CONTAINER ──────────────────────────────────── */
+  .phase {
+    display: none;
+    animation: fadeUp 0.4s ease both;
+  }
+  .phase.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SECTION CARD ─────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border2), transparent);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .phase-badge {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--gold-glow);
+    border: 1px solid var(--gold-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--gold);
+    font-weight: 500;
+  }
+  .card-title-group { flex: 1; }
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: var(--text2);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  /* ── FORM ELEMENTS ────────────────────────────────────── */
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .field-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  .field-row.four  { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .field-row.solo  { grid-template-columns: 1fr; }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-weight: 500;
+  }
+  label span {
+    color: var(--text2);
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+  }
+
+  input[type="number"], input[type="text"], select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input:focus, select:focus {
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px var(--gold-glow);
+  }
+  input::placeholder { color: var(--text3); }
+
+  select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23555c78' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+  select option { background: var(--surface); }
+
+  .prefix-input {
+    position: relative;
+  }
+  .prefix-input span {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    pointer-events: none;
+  }
+  .prefix-input input { padding-left: 26px; }
+
+  /* ── DIVIDER ──────────────────────────────────────────── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  /* ── SECTION LABEL ────────────────────────────────────── */
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 14px;
+  }
+
+  /* ── RADIO TILES ──────────────────────────────────────── */
+  .tiles {
+    display: grid;
+    gap: 10px;
+  }
+  .tiles.two   { grid-template-columns: 1fr 1fr; }
+  .tiles.three { grid-template-columns: 1fr 1fr 1fr; }
+  .tiles.four  { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .tile input { display: none; }
+  .tile label {
+    display: block;
+    padding: 13px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text2);
+    line-height: 1.4;
+  }
+  .tile label strong {
+    display: block;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .tile input:checked + label {
+    border-color: var(--gold);
+    background: var(--gold-glow);
+    color: var(--text);
+  }
+  .tile label:hover {
+    border-color: var(--border2);
+    color: var(--text);
+  }
+
+  /* ── INFO CALLOUT ─────────────────────────────────────── */
+  .callout {
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    border-left: 3px solid;
+    margin-bottom: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .callout.info   { background: var(--blue-bg);  border-color: var(--blue);  color: #a0b8f8; }
+  .callout.warn   { background: var(--amber-bg); border-color: var(--amber); color: #f5c878; }
+  .callout.good   { background: var(--green-bg); border-color: var(--green); color: #7de8b8; }
+  .callout.danger { background: var(--red-bg);   border-color: var(--red);   color: #f5a09a; }
+  .callout strong { display: block; margin-bottom: 3px; font-weight: 600; }
+
+  /* ── CENTERING VISUAL ─────────────────────────────────── */
+  .centering-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .centering-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .centering-card h4 {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 14px;
+  }
+  .center-inputs {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .center-inputs .vs {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+    text-align: center;
+  }
+  .ratio-display {
+    text-align: center;
+    margin-top: 12px;
+  }
+  .ratio-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    transition: color 0.3s;
+  }
+  .ratio-label {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .ratio-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    margin-top: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ratio-bar-fill {
+    position: absolute;
+    top: 0; bottom: 0;
+    border-radius: 4px;
+    transition: all 0.4s ease;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* ── PRE-GRADE DISPLAY ────────────────────────────────── */
+  .pregrade-display {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .pregrade-number {
+    font-family: 'DM Serif Display', serif;
+    font-size: 72px;
+    line-height: 1;
+    transition: color 0.4s;
+    margin-bottom: 4px;
+  }
+  .pregrade-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+  .pregrade-range {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .pillar-bars {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 20px;
+  }
+  .pillar-bar-item { }
+  .pillar-bar-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .pillar-bar-name {
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .pillar-bar-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--gold);
+  }
+  .pillar-bar-track {
+    height: 3px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .pillar-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    transition: width 0.5s ease;
+  }
+
+  /* ── CHECKLIST ────────────────────────────────────────── */
+  .checklist { display: flex; flex-direction: column; gap: 10px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .check-item-text { flex: 1; font-size: 13px; color: var(--text2); }
+  .check-item-text strong {
+    display: block;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .yn-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .yn-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+    color: var(--text3);
+    letter-spacing: 0.05em;
+  }
+  .yn-btn:hover { color: var(--text); border-color: var(--border2); }
+  .yn-btn.yes.active { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .yn-btn.no.active  { background: var(--red-bg);   border-color: var(--red);   color: var(--red); }
+
+  /* ── SLIDER ───────────────────────────────────────────── */
+  .slider-group { margin-bottom: 18px; }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 6px;
+  }
+  .slider-name { font-size: 13px; color: var(--text); flex: 1; }
+  .slider-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--gold);
+    min-width: 28px;
+    text-align: right;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+    box-shadow: 0 0 0 3px var(--gold-glow);
+    transition: box-shadow 0.2s;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 6px var(--gold-glow);
+  }
+
+  /* ── BUTTONS ──────────────────────────────────────────── */
+  .btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  .btn {
+    padding: 13px 28px;
+    border-radius: var(--radius);
+    border: none;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .btn-ghost:hover {
+    border-color: var(--border2);
+    color: var(--text);
+  }
+  .btn-primary {
+    background: var(--gold);
+    color: #0d0f14;
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: #d4b45a;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(200,168,75,0.25);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* ── RECOMMENDATION OUTPUT ────────────────────────────── */
+  .rec-hero {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 36px;
+    margin-bottom: 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .rec-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .rec-badge {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .rec-company {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    color: var(--gold);
+    margin-bottom: 6px;
+    line-height: 1.1;
+  }
+  .rec-action {
+    font-size: 15px;
+    color: var(--text2);
+    margin-bottom: 28px;
+    font-weight: 300;
+  }
+  .rec-pl {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .rec-pl-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .rec-pl-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 48px;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  .rec-reason {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* ── EV TABLE ─────────────────────────────────────────── */
+  .ev-table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .ev-table-head {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ev-table-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 12px 24px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  th:not(:first-child) { text-align: right; }
+  td {
+    padding: 14px 24px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    vertical-align: middle;
+  }
+  td:not(:first-child) {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    text-align: right;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.best-row td { background: rgba(200,168,75,0.05); }
+  tr.best-row td:first-child { color: var(--text); font-weight: 500; }
+  tr.raw-row td { color: var(--text3); }
+  tr.raw-row td:first-child { color: var(--text2); }
+
+  .tag-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .tag-best  { background: rgba(200,168,75,0.15); color: var(--gold); }
+  .tag-pos   { background: var(--green-bg); color: var(--green); }
+  .tag-neg   { background: var(--red-bg);   color: var(--red); }
+  .tag-warn  { background: var(--amber-bg); color: var(--amber); }
+
+  /* ── SCENARIO BREAKDOWN ───────────────────────────────── */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .scenario-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    text-align: center;
+  }
+  .scenario-grade {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .scenario-prob {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 12px;
+  }
+  .scenario-sale {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+  .scenario-pl {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .scenario-pl.pos { color: var(--green); }
+  .scenario-pl.neg { color: var(--red); }
+
+  /* ── FLAGS ────────────────────────────────────────────── */
+  .flags { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+
+  /* ── RESTART BUTTON ───────────────────────────────────── */
+  .restart-wrap {
+    text-align: center;
+    margin-top: 32px;
+  }
+  .btn-restart {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 11px 24px;
+    color: var(--text2);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-restart:hover { border-color: var(--border2); color: var(--text); }
+
+  /* ── SESSION HISTORY ──────────────────────────────────── */
+  .history-section {
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .history-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .history-clear {
+    background: transparent;
+    border: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    cursor: pointer;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.2s;
+  }
+  .history-clear:hover { color: var(--red); }
+  .history-empty {
+    text-align: center;
+    padding: 28px;
+    color: var(--text3);
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-style: italic;
+  }
+  .history-list { display: flex; flex-direction: column; gap: 10px; }
+  .history-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 16px;
+    align-items: center;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .history-item:hover { border-color: var(--border2); }
+  .history-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .history-item-sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .history-item-pg {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    text-align: center;
+  }
+  .history-item-rec {
+    font-size: 12px;
+    font-weight: 500;
+    text-align: right;
+    color: var(--text2);
+  }
+  .history-item-pl {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: right;
+    min-width: 70px;
+  }
+
+  /* ── FOOTER ───────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 32px 0 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── CALCULATING OVERLAY ──────────────────────────────── */
+  .calc-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(13,15,20,0.92);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .calc-overlay.show { display: flex; }
+  .calc-spinner {
+    width: 48px;
+    height: 48px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .calc-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  /* ── RESPONSIVE ───────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .field-row, .field-row.three, .field-row.four { grid-template-columns: 1fr; }
+    .tiles.three, .tiles.four { grid-template-columns: 1fr 1fr; }
+    .centering-grid { grid-template-columns: 1fr; }
+    .scenario-grid  { grid-template-columns: 1fr 1fr; }
+    .pillar-bars    { grid-template-columns: 1fr; }
+    .card { padding: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="calc-overlay" id="calcOverlay">
+  <div class="calc-spinner"></div>
+  <div class="calc-text">Calculating your EV</div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="header-eyebrow">TCG Grading Compass</div>
+    <h1>The Grading<br><em>Playbook</em></h1>
+    <p class="header-sub">Enter your card details and market prices. We'll calculate your expected profit across every grading company and service tier — and tell you exactly what to do.</p>
+  </header>
+
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span class="progress-label">Evaluation Progress</span>
+      <span class="progress-step" id="progressStep">Phase 1 of 6</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:16.6%"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 1 — CARD IDENTITY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase active" id="phase1">
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge">01</div>
+        <div class="card-title-group">
+          <div class="card-title">Card Identity</div>
+          <div class="card-desc">Tell us about the card you're evaluating</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Card Name</label>
+          <input type="text" id="cardName" placeholder="e.g. Charizard ex" />
+        </div>
+        <div class="field">
+          <label>Set / Expansion</label>
+          <input type="text" id="cardSet" placeholder="e.g. Obsidian Flames" />
+        </div>
+      </div>
+
+      <div class="field-row three">
+        <div class="field">
+          <label>Year Printed</label>
+          <input type="number" id="cardYear" placeholder="2024" min="1996" max="2030" />
+        </div>
+        <div class="field">
+          <label>Card Type</label>
+          <select id="cardType">
+            <option value="">Select type...</option>
+            <optgroup label="Scarlet &amp; Violet Era">
+              <option value="special_illustration_rare">Special Illustration Rare (SIR)</option>
+              <option value="illustration_rare">Illustration Rare (IR)</option>
+              <option value="hyper_rare">Hyper Rare / Gold</option>
+              <option value="double_rare">Double Rare (ex / V)</option>
+              <option value="ace_spec">ACE SPEC Rare</option>
+            </optgroup>
+            <optgroup label="Sword &amp; Shield / Sun &amp; Moon Era">
+              <option value="alt_art">Alt Art / Alternate Full Art</option>
+              <option value="rainbow_rare">Rainbow Rare</option>
+              <option value="full_art">Full Art (V / VMAX / VSTAR)</option>
+              <option value="secret_rare">Secret Rare / Gold Card</option>
+            </optgroup>
+            <optgroup label="All Eras">
+              <option value="holo">Holo Rare</option>
+              <option value="reverse_holo">Reverse Holo</option>
+              <option value="etched">Etched / Special Texture</option>
+              <option value="standard">Standard Non-Holo</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field">
+          <label>First Edition / Limited?</label>
+          <select id="firstEdition">
+            <option value="no">No</option>
+            <option value="yes">Yes — First Edition</option>
+            <option value="shadowless">Yes — Shadowless</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Acquisition</div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>How did you get this card?</label>
+          <select id="acqMethod" onchange="updateAcqFields()">
+            <option value="pull">Pack pull — I opened it</option>
+            <option value="raw">Bought as a raw single</option>
+            <option value="trade">Trade or other</option>
+          </select>
+        </div>
+        <div class="field" id="sealedSourceField">
+          <label>Where did you buy the sealed product?</label>
+          <select id="sealedSource" onchange="updateMsrpWarning()">
+            <option value="msrp">Walmart / Target / Pokémon Center (normal price)</option>
+            <option value="gamestop">GameStop</option>
+            <option value="above">Card show / eBay / secondary market</option>
+            <option value="lcs">Local card shop</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row three">
+        <div class="field">
+          <label>What did you pay? <span>(for the pack or card)</span></label>
+          <div class="prefix-input"><span>$</span>
+            <input type="number" id="pricePaid" placeholder="0.00" step="0.01" min="0" onchange="updateMsrpWarning()" />
+          </div>
+        </div>
+        <div class="field" id="msrpField">
+          <label>Normal retail price (MSRP) <span>approx.</span></label>
+          <div class="prefix-input"><span>$</span>
+            <input type="number" id="msrpPrice" placeholder="0.00" step="0.01" min="0" onchange="updateMsrpWarning()" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Your cost basis for this card</label>
+          <div class="prefix-input"><span>$</span>
+            <input type="number" id="acquisitionCost" placeholder="0.00" step="0.01" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <div id="msrpWarning" class="callout warn" style="display:none">
+        <strong>Above MSRP Alert</strong>
+        You paid above the normal retail price for this product. This raises your cost basis — your card needs a stronger grade to turn a profit. We've noted this in your evaluation.
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="goToPhase(2)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 2 — CENTERING
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase" id="phase2">
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge">02</div>
+        <div class="card-title-group">
+          <div class="card-title">Centering</div>
+          <div class="card-desc">Measure the border on each side of your card in millimeters</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>How to measure</strong>
+        Use a ruler or calipers. Lay the card flat and measure the white border on each side — top, bottom, left, right. Do the front of the card first, then flip it and measure the back. Enter each border width in millimeters below.
+      </div>
+
+      <div class="centering-grid">
+        <div class="centering-card">
+          <h4>Front of card</h4>
+          <div style="margin-bottom:12px">
+            <div class="center-inputs">
+              <div class="field"><label>Left (mm)</label><input type="number" id="fL" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+              <div class="vs">↔</div>
+              <div class="field"><label>Right (mm)</label><input type="number" id="fR" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+            </div>
+            <div class="ratio-display">
+              <div class="ratio-value" id="ratioLR">—</div>
+              <div class="ratio-label">Left / Right ratio</div>
+              <div class="ratio-bar"><div class="ratio-bar-fill" id="barLR"></div></div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="center-inputs" style="margin-top:12px">
+            <div class="field"><label>Top (mm)</label><input type="number" id="fT" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+            <div class="vs">↕</div>
+            <div class="field"><label>Bottom (mm)</label><input type="number" id="fB" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+          </div>
+          <div class="ratio-display">
+            <div class="ratio-value" id="ratioTB">—</div>
+            <div class="ratio-label">Top / Bottom ratio</div>
+            <div class="ratio-bar"><div class="ratio-bar-fill" id="barTB"></div></div>
+          </div>
+        </div>
+
+        <div class="centering-card">
+          <h4>Back of card</h4>
+          <div style="margin-bottom:12px">
+            <div class="center-inputs">
+              <div class="field"><label>Left (mm)</label><input type="number" id="bL" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+              <div class="vs">↔</div>
+              <div class="field"><label>Right (mm)</label><input type="number" id="bR" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+            </div>
+            <div class="ratio-display">
+              <div class="ratio-value" id="ratioBackLR">—</div>
+              <div class="ratio-label">Left / Right ratio</div>
+              <div class="ratio-bar"><div class="ratio-bar-fill" id="barBackLR"></div></div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="center-inputs" style="margin-top:12px">
+            <div class="field"><label>Top (mm)</label><input type="number" id="bT" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+            <div class="vs">↕</div>
+            <div class="field"><label>Bottom (mm)</label><input type="number" id="bB" placeholder="—" min="0" step="0.1" oninput="updateCentering()"></div>
+          </div>
+          <div class="ratio-display">
+            <div class="ratio-value" id="ratioBackTB">—</div>
+            <div class="ratio-label">Top / Bottom ratio</div>
+            <div class="ratio-bar"><div class="ratio-bar-fill" id="barBackTB"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="centeringFeedback" class="callout" style="display:none; margin-top:16px;"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToPhase(1)">← Back</button>
+        <button class="btn btn-primary" onclick="goToPhase(3)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 3 — CORNERS & EDGES & SURFACE
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase" id="phase3">
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge">03</div>
+        <div class="card-title-group">
+          <div class="card-title">Corners, Edges &amp; Surface</div>
+          <div class="card-desc">Answer yes or no for each item — be honest, graders see everything</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Get set up before you start</strong>
+        Hold a flashlight or lamp low and to the SIDE of your card so the light skims across the surface at a shallow angle. Look through a magnifying glass if you have one. Rotate the card slowly as you examine each area.
+      </div>
+
+      <div class="section-label">Corners — check all four corners front and back</div>
+      <div class="checklist" id="cornerChecklist">
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Do all four corner tips look sharp and pointed — not rounded or flat?</strong>
+            Look closely at the very tip of each corner. A rounded tip means the corner has wear.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'c1',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'c1',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Under your magnifying glass — do you see tiny thread-like fibers at any corner tip?</strong>
+            Like a frayed piece of fabric at the very edge. Even one tiny fiber costs points.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'c2',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'c2',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Can you see any crease lines running from a corner toward the center of the card?</strong>
+            These often feel slightly raised or depressed when you run a finger gently near the corner.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'c3',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'c3',false)">NO</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Edges — look straight down each of the four edges</div>
+      <div class="checklist">
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Does your card have dark-colored borders?</strong>
+            Dark borders (like many modern Pokémon cards) show edge damage much more clearly than white borders.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'e0',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'e0',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>When you look straight down each edge — does every edge look smooth and straight?</strong>
+            Any bumps, waves, or rough spots are edge damage.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'e1',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'e1',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Are there any tiny chips or nicks — small pieces missing from any edge?</strong>
+            Even a tiny missing chip on a dark border will be caught by graders under magnification.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'e2',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'e2',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item" id="darkBorderCheck" style="display:none">
+          <div class="check-item-text">
+            <strong>On the dark borders — do you see any white marks, scratches, or scuffs along any edge?</strong>
+            White marks on dark borders are one of the most common and punishing defects for modern cards.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'e3',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'e3',false)">NO</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Surface — front and back</div>
+      <div class="checklist">
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Tilt the shiny part of the front slowly under your light — do any thin scratch lines appear and disappear?</strong>
+            Go slowly through a full half-circle. Holo scratches are nearly invisible straight-on but catch light at specific angles.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'s1',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'s1',false)">NO</button>
+            <button class="yn-btn" onclick="setYNN(this,'s1')" style="color:var(--text3); font-size:10px; padding:6px 10px;">N/A</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Does the shiny surface look clear and bright — no foggy, cloudy, or dull areas anywhere?</strong>
+            Haziness on the holo layer is a significant defect even if the card looks fine otherwise.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'s2',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'s2',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Hold the card back almost flat to your light — do you see any dull white patches on the back surface?</strong>
+            These pressure marks or "whitening" look less shiny than the rest of the back. Very common from normal storage.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'s3',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'s3',false)">NO</button>
+          </div>
+        </div>
+        <div class="check-item">
+          <div class="check-item-text">
+            <strong>Do you see any thin parallel lines running across the back — like marks from stacking with other cards?</strong>
+            These are called stacking marks and are caught by graders even when they look very faint.
+          </div>
+          <div class="yn-btns">
+            <button class="yn-btn yes" onclick="setYN(this,'s4',true)">YES</button>
+            <button class="yn-btn no"  onclick="setYN(this,'s4',false)">NO</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToPhase(2)">← Back</button>
+        <button class="btn btn-primary" onclick="goToPhase(4)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 4 — MARKET DATA
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase" id="phase4">
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge">04</div>
+        <div class="card-title-group">
+          <div class="card-title">Market Prices</div>
+          <div class="card-desc">Enter current prices from recent eBay sold listings — not active listings</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>How to find the right prices</strong>
+        Go to eBay → search your card name plus the grade (e.g. "Charizard ex PSA 10") → click Sold Items in the filters. Record the average of the last 3 sales. Prices change fast — use listings from the past 30 days if possible.
+      </div>
+
+      <div class="section-label">Raw card (ungraded)</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Raw market price <span>what it sells for ungraded</span></label>
+          <div class="prefix-input"><span>$</span>
+            <input type="number" id="rawPrice" placeholder="0.00" step="0.01" min="0" />
+          </div>
+        </div>
+        <div class="field">
+          <label>PSA 10 population <span>from psacard.com pop report — optional</span></label>
+          <input type="number" id="psaPop" placeholder="Leave blank if unknown" min="0" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">PSA graded prices</div>
+      <div class="field-row four">
+        <div class="field">
+          <label>PSA 10</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="psa10" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>PSA 9</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="psa9" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>PSA 8</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="psa8" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>PSA 7</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="psa7" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">CGC graded prices</div>
+      <div class="field-row">
+        <div class="field">
+          <label>CGC 10</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="cgc10" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>CGC 9</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="cgc9" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">BGS graded prices <span style="color:var(--text3); font-family:'Outfit'; font-size:12px; letter-spacing:0; text-transform:none; font-weight:300">(optional)</span></div>
+      <div class="field-row three">
+        <div class="field">
+          <label>BGS Black Label 10</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="bgs10" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>BGS 9.5</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="bgs95" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <label>BGS 9</label>
+          <div class="prefix-input"><span>$</span><input type="number" id="bgs9" placeholder="0" step="0.01" min="0" /></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToPhase(3)">← Back</button>
+        <button class="btn btn-primary" onclick="goToPhase(5)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 5 — GOALS & TIMELINE
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase" id="phase5">
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge">05</div>
+        <div class="card-title-group">
+          <div class="card-title">Goals &amp; Timeline</div>
+          <div class="card-desc">Same card, same grade — different right answer depending on your situation</div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:12px">How quickly do you need the card back?</div>
+      <div class="tiles four" style="margin-bottom:24px">
+        <div class="tile"><input type="radio" name="timeline" id="t1" value="urgent"><label for="t1"><strong>ASAP</strong>Under 2 weeks</label></div>
+        <div class="tile"><input type="radio" name="timeline" id="t2" value="soon" checked><label for="t2"><strong>1-2 months</strong>Moderate urgency</label></div>
+        <div class="tile"><input type="radio" name="timeline" id="t3" value="patient"><label for="t3"><strong>3-6 months</strong>Can wait</label></div>
+        <div class="tile"><input type="radio" name="timeline" id="t4" value="any"><label for="t4"><strong>No rush</strong>Willing to wait</label></div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:12px">What is your primary goal?</div>
+      <div class="tiles two" style="margin-bottom:24px">
+        <div class="tile"><input type="radio" name="goal" id="g1" value="profit" checked><label for="g1"><strong>Maximize Profit</strong>I want the highest possible return, regardless of which company</label></div>
+        <div class="tile"><input type="radio" name="goal" id="g2" value="flip"><label for="g2"><strong>Quick Flip</strong>I want to sell as soon as it comes back — speed of resale matters</label></div>
+        <div class="tile"><input type="radio" name="goal" id="g3" value="hold"><label for="g3"><strong>Long-Term Hold</strong>I'm holding this card for months or years before selling</label></div>
+        <div class="tile"><input type="radio" name="goal" id="g4" value="collection"><label for="g4"><strong>Collection</strong>I'd keep a high grade, sell if it comes back mid</label></div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:12px">How do you feel about risk on this submission?</div>
+      <div class="tiles three" style="margin-bottom:8px">
+        <div class="tile"><input type="radio" name="risk" id="r1" value="conservative"><label for="r1"><strong>Conservative</strong>I'd rather get a safe grade than swing for a 10 and get a 7</label></div>
+        <div class="tile"><input type="radio" name="risk" id="r2" value="moderate" checked><label for="r2"><strong>Moderate</strong>I'll submit if the expected value is positive</label></div>
+        <div class="tile"><input type="radio" name="risk" id="r3" value="aggressive"><label for="r3"><strong>Aggressive</strong>Show me the upside — I can handle some downside risk</label></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToPhase(4)">← Back</button>
+        <button class="btn btn-primary" onclick="calculate()">Calculate My EV →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PHASE 6 — RECOMMENDATION
+  ══════════════════════════════════════════════════════════ -->
+  <div class="phase" id="phase6">
+
+    <!-- Hero -->
+    <div class="rec-hero" id="recHero">
+      <div class="rec-badge" id="recBadge"></div>
+      <div class="rec-company" id="recCompany"></div>
+      <div class="rec-action" id="recAction"></div>
+      <div class="rec-pl">
+        <span class="rec-pl-label">Expected P/L</span>
+        <span class="rec-pl-value" id="recPL"></span>
+      </div>
+      <div class="rec-reason" id="recReason"></div>
+    </div>
+
+    <!-- Flags -->
+    <div class="flags" id="recFlags"></div>
+
+    <!-- Scenario breakdown -->
+    <div class="ev-table-wrap">
+      <div class="ev-table-head">
+        <span class="ev-table-title">Grade Scenarios — <span id="scenarioCompany"></span></span>
+      </div>
+      <div class="scenario-grid" id="scenarioGrid" style="padding:20px;"></div>
+    </div>
+
+    <!-- Full EV table -->
+    <div class="ev-table-wrap">
+      <div class="ev-table-head">
+        <span class="ev-table-title">Full Comparison — All Options</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Exp. Return</th>
+            <th>Cost Basis</th>
+            <th>Exp. P/L</th>
+            <th>Signal</th>
+          </tr>
+        </thead>
+        <tbody id="evTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Pre-grade summary -->
+    <div class="card">
+      <div class="card-header">
+        <div class="phase-badge" style="font-size:11px;">PG</div>
+        <div class="card-title-group">
+          <div class="card-title">Your Pre-Grade Score</div>
+          <div class="card-desc">Based on your checklist responses</div>
+        </div>
+      </div>
+      <div class="pregrade-display">
+        <div class="pregrade-number" id="pgNumber">—</div>
+        <div class="pregrade-label">Pre-Grade Score</div>
+        <div class="pregrade-range" id="pgRange"></div>
+      </div>
+      <div class="pillar-bars" id="pillarBars"></div>
+    </div>
+
+    <div class="restart-wrap">
+      <button class="btn-restart" onclick="restart()">← Evaluate Another Card</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SESSION HISTORY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="history-section" id="historySection" style="display:none">
+    <div class="history-header">
+      <span class="history-title">This Session — Evaluated Cards</span>
+      <button class="history-clear" onclick="clearHistory()">Clear</button>
+    </div>
+    <div id="historyList">
+      <div class="history-empty">No cards evaluated yet this session.</div>
+    </div>
+  </div>
+
+  <footer>
+    TCG Grading Compass — Prototype v1.0 &nbsp;·&nbsp; For educational purposes &nbsp;·&nbsp; Always verify prices with current eBay sold listings
+  </footer>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const state = {
+  yn: {},         // checklist answers
+  centering: {},  // centering scores per measurement
+};
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function goToPhase(n) {
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+  document.getElementById('phase' + n).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const pct = (n / 6) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressStep').textContent = 'Phase ' + n + ' of 6';
+}
+
+// ─── ACQUISITION FIELDS ───────────────────────────────────────────────────────
+function updateAcqFields() {
+  const method = document.getElementById('acqMethod').value;
+  const sourceField = document.getElementById('sealedSourceField');
+  const msrpField   = document.getElementById('msrpField');
+  if (method === 'pull') {
+    sourceField.style.display = 'flex';
+    msrpField.style.display   = 'flex';
+  } else {
+    sourceField.style.display = 'none';
+    msrpField.style.display   = 'none';
+    document.getElementById('msrpWarning').style.display = 'none';
+  }
+}
+
+function updateMsrpWarning() {
+  const paid   = parseFloat(document.getElementById('pricePaid').value) || 0;
+  const msrp   = parseFloat(document.getElementById('msrpPrice').value) || 0;
+  const source = document.getElementById('sealedSource').value;
+  const warn   = document.getElementById('msrpWarning');
+  if ((source === 'gamestop' || source === 'above') && paid > 0 && msrp > 0 && paid > msrp) {
+    warn.style.display = 'block';
+  } else if (source === 'gamestop' && paid > 0) {
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+// ─── CENTERING ────────────────────────────────────────────────────────────────
+function updateCentering() {
+  calcRatio('fL','fR','ratioLR','barLR', true);
+  calcRatio('fT','fB','ratioTB','barTB', true);
+  calcRatio('bL','bR','ratioBackLR','barBackLR', false);
+  calcRatio('bT','bB','ratioBackTB','barBackTB', false);
+  updateCenteringFeedback();
+}
+
+function calcRatio(aId, bId, displayId, barId, isFront) {
+  const a = parseFloat(document.getElementById(aId).value) || 0;
+  const b = parseFloat(document.getElementById(bId).value) || 0;
+  if (!a || !b) {
+    document.getElementById(displayId).textContent = '—';
+    document.getElementById(displayId).style.color = 'var(--text3)';
+    document.getElementById(barId).style.width = '0';
+    document.getElementById(barId).style.background = 'var(--border2)';
+    return null;
+  }
+  const total = a + b;
+  const big   = Math.max(a, b);
+  const small = Math.min(a, b);
+  const pct   = Math.round((big / total) * 100);
+  const ratio = pct + '/' + (100 - pct);
+  document.getElementById(displayId).textContent = ratio;
+  // color
+  let color, barColor;
+  if (pct <= 55) { color = 'var(--green)';  barColor = '#3ecf8e'; }
+  else if (pct <= 60) { color = 'var(--amber)'; barColor = '#f0a030'; }
+  else { color = 'var(--red)'; barColor = '#f06057'; }
+  document.getElementById(displayId).style.color = color;
+  // bar — shows deviation from center
+  const deviation = Math.abs(pct - 50) / 50 * 100; // 0 = perfect, 100 = worst
+  document.getElementById(barId).style.width = deviation + '%';
+  document.getElementById(barId).style.background = barColor;
+  state.centering[displayId] = pct;
+  return pct;
+}
+
+function updateCenteringFeedback() {
+  const vals = Object.values(state.centering).filter(v => v);
+  if (!vals.length) return;
+  const worst = Math.max(...vals);
+  const el = document.getElementById('centeringFeedback');
+  el.style.display = 'block';
+  if (worst <= 52) {
+    el.className = 'callout good'; el.innerHTML = '<strong>Excellent centering</strong>Your centering qualifies for PSA 10, BGS 9.5, and CGC 10 thresholds. No concerns here.';
+  } else if (worst <= 55) {
+    el.className = 'callout good'; el.innerHTML = '<strong>Good centering — PSA 10 range</strong>Your centering meets the PSA 10 threshold (55/45 or better). BGS Black Label may be borderline.';
+  } else if (worst <= 60) {
+    el.className = 'callout warn'; el.innerHTML = '<strong>Marginal centering — PSA 9 range</strong>Your centering is outside PSA 10 and BGS 9.5 thresholds. PSA 9 is the realistic ceiling. This has been factored into your grade probabilities.';
+  } else {
+    el.className = 'callout danger'; el.innerHTML = '<strong>Poor centering — PSA 10 eliminated</strong>Your centering ratio exceeds the 60/40 threshold. A PSA 10 is not achievable. This significantly affects your expected value.';
+  }
+}
+
+// ─── CHECKLIST Y/N ────────────────────────────────────────────────────────────
+function setYN(btn, key, val) {
+  state.yn[key] = val;
+  const group = btn.closest('.yn-btns');
+  group.querySelectorAll('.yn-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Show dark border check if e0=yes
+  if (key === 'e0' && val === true) {
+    document.getElementById('darkBorderCheck').style.display = 'flex';
+  } else if (key === 'e0' && val === false) {
+    document.getElementById('darkBorderCheck').style.display = 'none';
+    delete state.yn['e3'];
+  }
+}
+function setYNN(btn, key) {
+  state.yn[key] = null; // N/A
+  const group = btn.closest('.yn-btns');
+  group.querySelectorAll('.yn-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ─── SCORING ──────────────────────────────────────────────────────────────────
+function calcCenteringScore() {
+  const vals = Object.values(state.centering).filter(v => v);
+  if (!vals.length) return 8.5; // default if not measured
+  const worst = Math.max(...vals);
+  if (worst <= 50) return 10;
+  if (worst <= 52) return 9.5;
+  if (worst <= 55) return 9;
+  if (worst <= 58) return 8.5;
+  if (worst <= 62) return 8;
+  if (worst <= 65) return 7;
+  return 6;
+}
+
+function calcCornerScore() {
+  let score = 10;
+  if (state.yn['c1'] === false) score -= 2;   // rounded tips
+  if (state.yn['c2'] === true)  score -= 1.5; // fraying
+  if (state.yn['c3'] === true)  score -= 2.5; // creases
+  return Math.max(1, score);
+}
+
+function calcEdgeScore() {
+  let score = 10;
+  const darkBorder = state.yn['e0'] === true;
+  if (state.yn['e1'] === false) score -= 1.5; // not smooth
+  if (state.yn['e2'] === true)  score -= 2;   // chips
+  if (darkBorder && state.yn['e3'] === true) score -= 2.5; // white on dark
+  if (darkBorder) score = Math.max(score - 0.5, 1); // dark border penalty
+  return Math.max(1, score);
+}
+
+function calcSurfaceScore() {
+  let score = 10;
+  if (state.yn['s1'] === true)  score -= 2;   // scratches visible
+  if (state.yn['s2'] === false) score -= 1.5; // haze
+  if (state.yn['s3'] === true)  score -= 1.5; // back whitening
+  if (state.yn['s4'] === true)  score -= 1;   // stacking marks
+  return Math.max(1, score);
+}
+
+function calcPreGrade() {
+  const c = calcCenteringScore();
+  const co = calcCornerScore();
+  const e = calcEdgeScore();
+  const s = calcSurfaceScore();
+  return {
+    centering: c, corners: co, edges: e, surface: s,
+    overall: Math.round((c*0.20 + co*0.30 + e*0.20 + s*0.30) * 10) / 10
+  };
+}
+
+// ─── PROBABILITY DISTRIBUTION ─────────────────────────────────────────────────
+function getProbs(pg, company) {
+  let p10, p9, p8, p7;
+  if      (pg >= 9.5) { p10=0.60; p9=0.30; p8=0.08; p7=0.02; }
+  else if (pg >= 9.0) { p10=0.30; p9=0.45; p8=0.18; p7=0.07; }
+  else if (pg >= 8.5) { p10=0.10; p9=0.40; p8=0.35; p7=0.15; }
+  else if (pg >= 8.0) { p10=0.03; p9=0.25; p8=0.40; p7=0.32; }
+  else                { p10=0.01; p9=0.10; p8=0.30; p7=0.59; }
+
+  // Centering adjustment — if centering score kills 10, redistribute
+  const cs = calcCenteringScore();
+  if (cs < 9 && company === 'PSA') {
+    p9 += p10 * 0.8; p10 = p10 * 0.2;
+  }
+  // CGC slightly harder 10
+  if (company === 'CGC') { p9 += p10 * 0.1; p10 *= 0.9; }
+
+  return { p10, p9, p8, p7 };
+}
+
+// ─── PSA TIER CALC ────────────────────────────────────────────────────────────
+function getPSATierFee(price) {
+  if (price <= 499)  return { fee: 32.99, tier: 'Value',       surcharge: 0 };
+  if (price <= 999)  return { fee: 64.99, tier: 'Value Max',   surcharge: Math.round((price - 499) * 0.02 * 100)/100 };
+  if (price <= 1499) return { fee: 79.99, tier: 'Regular',     surcharge: Math.round((price - 499) * 0.02 * 100)/100 };
+  if (price <= 2999) return { fee: 149,   tier: 'Express',     surcharge: Math.round((price - 499) * 0.02 * 100)/100 };
+  return                    { fee: 299,   tier: 'Super Exp.',  surcharge: Math.round((price - 499) * 0.02 * 100)/100 };
+}
+
+function getTimeline() {
+  const el = document.querySelector('input[name="timeline"]:checked');
+  return el ? el.value : 'soon';
+}
+function getGoal() {
+  const el = document.querySelector('input[name="goal"]:checked');
+  return el ? el.value : 'profit';
+}
+function getRisk() {
+  const el = document.querySelector('input[name="risk"]:checked');
+  return el ? el.value : 'moderate';
+}
+
+// ─── EXPECTED VALUE CALC ──────────────────────────────────────────────────────
+function calcEV(company, prices, probs, acqCost, shipping) {
+  // prices: {g10, g9, g8, g7}
+  // Returns expected P/L
+  let ev = 0;
+  const grades = [
+    { prob: probs.p10, sale: prices.g10, gradeLabel: '10' },
+    { prob: probs.p9,  sale: prices.g9,  gradeLabel: '9'  },
+    { prob: probs.p8,  sale: prices.g8,  gradeLabel: '8'  },
+    { prob: probs.p7,  sale: prices.g7,  gradeLabel: '7'  },
+  ];
+  const scenarioPLs = [];
+  for (const g of grades) {
+    let fee = 0, tierName = '';
+    if (company === 'PSA') {
+      const t = getPSATierFee(g.sale || 0);
+      fee = t.fee + t.surcharge;
+      tierName = t.tier;
+    } else if (company === 'CGC') {
+      fee = g.sale > 1000 ? 100 : 55;
+      tierName = fee === 100 ? 'Express' : 'Standard';
+    } else if (company === 'BGS') {
+      fee = g.sale > 500 ? 50 : 25;
+      tierName = fee === 50 ? 'Express' : 'Standard';
+    } else if (company === 'GameStop') {
+      fee = 19.99 + (9.99 / 3); // $9.99 shipping split across 3 cards avg
+      tierName = 'GameStop';
+    }
+    const totalCost = acqCost + fee + shipping;
+    const pl = (g.sale || 0) - totalCost;
+    scenarioPLs.push({ gradeLabel: g.gradeLabel, prob: g.prob, sale: g.sale, fee, tierName, cost: totalCost, pl });
+    ev += g.prob * pl;
+  }
+  return { ev: Math.round(ev * 100) / 100, scenarios: scenarioPLs };
+}
+
+// ─── MAIN CALCULATE ───────────────────────────────────────────────────────────
+function calculate() {
+  // Show overlay
+  document.getElementById('calcOverlay').classList.add('show');
+  setTimeout(() => {
+    try { _doCalc(); } catch(e) { console.error(e); }
+    document.getElementById('calcOverlay').classList.remove('show');
+    goToPhase(6);
+    // Save to session history after render
+    const cardName = document.getElementById('cardName').value;
+    const cardType = document.getElementById('cardType').value;
+    const pgScore  = parseFloat(document.getElementById('pgNumber').textContent) || 0;
+    const recText  = document.getElementById('recCompany').textContent;
+    const plText   = document.getElementById('recPL').textContent;
+    const plVal    = parseFloat(plText.replace(/[^0-9.\-]/g,'')) * (plText.includes('−') ? -1 : 1);
+    saveToHistory(cardName, cardType, pgScore, recText, isNaN(plVal) ? 0 : plVal);
+  }, 2000);
+}
+
+function _doCalc() {
+  const acq      = parseFloat(document.getElementById('acquisitionCost').value) || 0;
+  const rawPrice = parseFloat(document.getElementById('rawPrice').value) || 0;
+  const psa10    = parseFloat(document.getElementById('psa10').value) || 0;
+  const psa9     = parseFloat(document.getElementById('psa9').value)  || 0;
+  const psa8     = parseFloat(document.getElementById('psa8').value)  || 0;
+  const psa7     = parseFloat(document.getElementById('psa7').value)  || 0;
+  const cgc10    = parseFloat(document.getElementById('cgc10').value) || psa10 * 0.85;
+  const cgc9     = parseFloat(document.getElementById('cgc9').value)  || psa9  * 0.85;
+  const bgs10    = parseFloat(document.getElementById('bgs10').value) || 0;
+  const bgs95    = parseFloat(document.getElementById('bgs95').value) || 0;
+  const bgs9     = parseFloat(document.getElementById('bgs9').value)  || 0;
+  const psaPop   = parseInt(document.getElementById('psaPop').value)  || null;
+  const shipping = 18; // default round trip shipping estimate
+
+  const pg = calcPreGrade();
+  const timeline = getTimeline();
+  const goal     = getGoal();
+  const risk     = getRisk();
+
+  // Raw sale P/L
+  const rawPL = rawPrice - acq;
+
+  // Probabilities
+  const psaProbs = getProbs(pg.overall, 'PSA');
+  const cgcProbs = getProbs(pg.overall, 'CGC');
+  const bgsProbs = getProbs(pg.overall, 'BGS');
+
+  // EVs
+  const psaResult = calcEV('PSA', { g10:psa10, g9:psa9, g8:psa8, g7:psa7 }, psaProbs, acq, shipping);
+  const cgcResult = calcEV('CGC', { g10:cgc10, g9:cgc9, g8:psa8*0.8, g7:psa7*0.8 }, cgcProbs, acq, shipping);
+  const bgsResult = bgs95 > 0
+    ? calcEV('BGS', { g10:bgs10||bgs95*1.5, g9:bgs95, g8:bgs9, g7:psa7*0.7 }, bgsProbs, acq, shipping)
+    : null;
+
+  // GameStop eligibility
+  const gsEligible = psa10 <= 175 && timeline !== 'urgent' && pg.overall < 9.5;
+  const gsResult = gsEligible
+    ? calcEV('GameStop', { g10:psa10, g9:psa9, g8:psa8, g7:psa7 }, psaProbs, acq, 6)
+    : null;
+
+  // Risk adjustment
+  let threshold = 0;
+  if (risk === 'conservative') threshold = rawPL * 0.15;
+  if (risk === 'aggressive')   threshold = rawPL * -0.05;
+
+  // Goal adjustment — liquidity weighting for PSA
+  let psaBonus = 0;
+  if (goal === 'flip')  psaBonus = 5;
+  if (goal === 'hold')  psaBonus = -5;
+
+  // Build options list
+  const options = [
+    { label:'Sell Raw',    ev: rawPL,                  display: rawPL,    isBest:false, isRaw:true },
+    { label:'PSA',         ev: psaResult.ev + psaBonus, display: psaResult.ev, result: psaResult, probs: psaProbs, company:'PSA' },
+    { label:'CGC',         ev: cgcResult.ev,             display: cgcResult.ev, result: cgcResult, probs: cgcProbs, company:'CGC' },
+  ];
+  if (bgsResult) options.push({ label:'BGS', ev: bgsResult.ev, display: bgsResult.ev, result: bgsResult, probs: bgsProbs, company:'BGS' });
+  if (gsResult)  options.push({ label:'PSA via GameStop', ev: gsResult.ev, display: gsResult.ev, result: gsResult, probs: psaProbs, company:'GameStop' });
+
+  // Sort by adjusted EV
+  const gradable = options.filter(o => !o.isRaw);
+  const bestGradable = gradable.sort((a,b) => b.ev - a.ev)[0];
+  const bestOption = (bestGradable && bestGradable.ev > rawPL + threshold) ? bestGradable : options[0];
+  options.find(o=>o.isRaw).isBest = bestOption.isRaw;
+  if (!bestOption.isRaw && bestGradable) gradable.find(o=>o.label===bestOption.label) && (bestOption.isBest = true);
+
+  // ── RENDER HERO ────────────────────────────────────────────────────────────
+  const hero = document.getElementById('recHero');
+  const badge = document.getElementById('recBadge');
+  const company = document.getElementById('recCompany');
+  const action = document.getElementById('recAction');
+  const plEl = document.getElementById('recPL');
+  const reason = document.getElementById('recReason');
+
+  const isDoNotSubmit = pg.overall < 8.0;
+  const isRawBest = bestOption.isRaw || isDoNotSubmit;
+
+  if (isDoNotSubmit) {
+    badge.textContent = 'Do Not Submit';
+    badge.style.cssText = 'background:var(--red-bg);color:var(--red);border:1px solid var(--red)';
+    company.textContent = 'Sell Raw';
+    company.style.color = 'var(--text)';
+    action.textContent = 'Your pre-grade score is below the submission threshold';
+    plEl.textContent = fmt(rawPL);
+    plEl.style.color = rawPL >= 0 ? 'var(--green)' : 'var(--red)';
+    reason.textContent = 'Cards with a pre-grade score below 8.0 almost never reach a grade where the graded value justifies submission costs. Selling raw is your best financial outcome.';
+  } else if (isRawBest) {
+    badge.textContent = 'Best Option';
+    badge.style.cssText = 'background:var(--green-bg);color:var(--green);border:1px solid var(--green)';
+    company.textContent = 'Sell Raw';
+    company.style.color = 'var(--text)';
+    action.textContent = 'No grading option beats your raw sale price';
+    plEl.textContent = fmt(rawPL);
+    plEl.style.color = rawPL >= 0 ? 'var(--green)' : 'var(--red)';
+    reason.textContent = buildReason(bestOption, pg, goal, timeline, psaPop, rawPL, risk);
+  } else {
+    badge.textContent = 'Recommended';
+    badge.style.cssText = 'background:var(--gold-glow);color:var(--gold);border:1px solid var(--gold-dim)';
+    company.textContent = bestOption.label;
+    company.style.color = 'var(--gold)';
+    action.textContent = buildAction(bestOption, goal, timeline);
+    plEl.textContent = fmt(bestOption.display);
+    plEl.style.color = bestOption.display >= 0 ? 'var(--green)' : 'var(--red)';
+    reason.textContent = buildReason(bestOption, pg, goal, timeline, psaPop, rawPL, risk);
+  }
+
+  // ── FLAGS ──────────────────────────────────────────────────────────────────
+  const flagsEl = document.getElementById('recFlags');
+  flagsEl.innerHTML = '';
+  const flags = [];
+
+  if (psaPop !== null && psaPop < 50)
+    flags.push({ type:'good', title:'Low Population Advantage', msg:`PSA 10 population is only ${psaPop}. Early submissions on low-pop cards capture a scarcity premium before the population builds. This is a favorable time to submit.` });
+  if (psaPop !== null && psaPop > 500)
+    flags.push({ type:'warn', title:'High Population Warning', msg:`PSA 10 population is ${psaPop}. The PSA 10 premium is compressed at this population level. CGC or TAG may offer better differentiation.` });
+  if (psa10 > 499) {
+    const t = getPSATierFee(psa10);
+    flags.push({ type:'warn', title:'Declared Value Tier Mismatch', msg:`Your PSA 10 price of ${fmt(psa10)} requires ${t.tier} tier grading (fee: ${fmt(t.fee + t.surcharge)} including 2% surcharge). But your PSA 9 price likely qualifies for a lower tier. Your cost basis changes significantly depending on your grade — this has been factored into your EV.` });
+  }
+  if (pg.overall >= 9.5 && (bgs10 > 0 || bgs95 > 0))
+    flags.push({ type:'info', title:'BGS Black Label Possible', msg:'All your pillar scores are strong. If BGS subgrades all come back as 10s, Black Label status applies. Black Label 10s carry significant premiums over PSA 10 on many cards.' });
+  if (gsEligible)
+    flags.push({ type:'info', title:'GameStop Pathway Available', msg:'This card qualifies for GameStop PSA submission — lower cost, but your card passes through additional handling. Best for lower-value cards where grading cost is your primary concern.' });
+  if (state.yn['e0'] === true)
+    flags.push({ type:'warn', title:'Dark Border Risk', msg:'Your card has dark-colored borders. Edge damage and whitening are significantly more visible and penalized on dark-bordered cards. Graders will scrutinize your edges closely.' });
+
+  flags.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'callout ' + f.type;
+    div.innerHTML = '<strong>' + f.title + '</strong>' + f.msg;
+    flagsEl.appendChild(div);
+  });
+
+  // ── SCENARIO GRID ──────────────────────────────────────────────────────────
+  const sc = document.getElementById('scenarioCompany');
+  const sg = document.getElementById('scenarioGrid');
+  const displayResult = (bestOption.result) ? bestOption.result : psaResult;
+  const displayCompany = bestOption.isRaw ? 'PSA (for reference)' : bestOption.label;
+  sc.textContent = displayCompany;
+  sg.innerHTML = '';
+
+  displayResult.scenarios.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'scenario-card';
+    const plClass = s.pl >= 0 ? 'pos' : 'neg';
+    div.innerHTML = `
+      <div class="scenario-grade">${s.gradeLabel}</div>
+      <div class="scenario-prob">${Math.round(s.prob*100)}% probability</div>
+      <div class="scenario-sale">Sells for ${fmt(s.sale)}</div>
+      <div class="scenario-sale" style="font-size:11px;color:var(--text3);margin-bottom:8px">${s.tierName} fee: ${fmt(s.fee)}</div>
+      <div class="scenario-pl ${plClass}">${fmt(s.pl)}</div>
+    `;
+    sg.appendChild(div);
+  });
+
+  // ── EV TABLE ───────────────────────────────────────────────────────────────
+  const tbody = document.getElementById('evTableBody');
+  tbody.innerHTML = '';
+
+  const tableOptions = [
+    { label:'Sell Raw (baseline)', ev: rawPL,        cost: acq,          ret: rawPrice,    isRaw:true },
+    { label:'PSA',                 ev: psaResult.ev,  cost: acq+shipping+35, ret: psaResult.ev + acq+shipping+35, isRaw:false },
+    { label:'CGC',                 ev: cgcResult.ev,  cost: acq+shipping+25, ret: cgcResult.ev + acq+shipping+25, isRaw:false },
+  ];
+  if (bgsResult) tableOptions.push({ label:'BGS', ev: bgsResult.ev, cost: acq+shipping+30, ret: bgsResult.ev + acq+shipping+30, isRaw:false });
+  if (gsResult)  tableOptions.push({ label:'PSA via GameStop', ev: gsResult.ev, cost: acq+26, ret: gsResult.ev + acq+26, isRaw:false });
+
+  const sortedTable = [...tableOptions].sort((a,b) => b.ev - a.ev);
+  const topEV = sortedTable[0].ev;
+
+  tableOptions.forEach(opt => {
+    const tr = document.createElement('tr');
+    const isBestRow = opt.ev === topEV && !opt.isRaw && opt.ev > rawPL;
+    if (isBestRow) tr.className = 'best-row';
+    if (opt.isRaw)  tr.className = 'raw-row';
+    const expRet = opt.isRaw ? rawPrice : (opt.ev + opt.cost);
+    const tag = isBestRow
+      ? '<span class="tag-pill tag-best">BEST</span>'
+      : opt.ev > rawPL
+        ? '<span class="tag-pill tag-pos">+EV</span>'
+        : '<span class="tag-pill tag-neg">−EV vs raw</span>';
+    tr.innerHTML = `
+      <td>${opt.label}${isBestRow ? '<span class="tag-pill tag-best" style="margin-left:8px">RECOMMENDED</span>' : ''}</td>
+      <td>${fmt(Math.max(0, expRet))}</td>
+      <td>${fmt(opt.cost)}</td>
+      <td style="color:${opt.ev >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(opt.ev)}</td>
+      <td>${tag}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // ── PRE-GRADE DISPLAY ──────────────────────────────────────────────────────
+  const pgNum = document.getElementById('pgNumber');
+  const pgRange = document.getElementById('pgRange');
+  pgNum.textContent = pg.overall.toFixed(1);
+  let pgColor, rangeText, rangeBg;
+  if      (pg.overall >= 9.5) { pgColor='var(--green)';  rangeText='PSA 10 Candidate';        rangeBg='var(--green-bg)';  }
+  else if (pg.overall >= 9.0) { pgColor='var(--green)';  rangeText='PSA 9 / BGS 9.5 Range';   rangeBg='var(--green-bg)';  }
+  else if (pg.overall >= 8.5) { pgColor='var(--amber)';  rangeText='PSA 8-9 Range';            rangeBg='var(--amber-bg)';  }
+  else if (pg.overall >= 8.0) { pgColor='var(--amber)';  rangeText='PSA 8 Territory';          rangeBg='var(--amber-bg)';  }
+  else                        { pgColor='var(--red)';    rangeText='Do Not Submit — Sell Raw'; rangeBg='var(--red-bg)';    }
+  pgNum.style.color = pgColor;
+  pgRange.textContent = rangeText;
+  pgRange.style.cssText = `background:${rangeBg};color:${pgColor};border:1px solid ${pgColor}33`;
+
+  const pillars = [
+    { name:'Centering', val: pg.centering },
+    { name:'Corners',   val: pg.corners   },
+    { name:'Edges',     val: pg.edges     },
+    { name:'Surface',   val: pg.surface   },
+  ];
+  const pbEl = document.getElementById('pillarBars');
+  pbEl.innerHTML = '';
+  pillars.forEach(p => {
+    pbEl.innerHTML += `
+      <div class="pillar-bar-item">
+        <div class="pillar-bar-label">
+          <span class="pillar-bar-name">${p.name}</span>
+          <span class="pillar-bar-val">${p.val.toFixed(1)}</span>
+        </div>
+        <div class="pillar-bar-track">
+          <div class="pillar-bar-fill" style="width:${(p.val/10)*100}%"></div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  const str = abs.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return (n < 0 ? '−' : '') + '$' + str;
+}
+
+function buildAction(opt, goal, timeline) {
+  if (timeline === 'urgent') return 'Submit via Express tier — fastest path back to you';
+  if (goal === 'flip') return 'Submit now — PSA liquidity gives you the fastest resale';
+  if (goal === 'hold') return 'Submit and hold — best long-term value option';
+  return 'Submit for best expected return';
+}
+
+function buildReason(opt, pg, goal, timeline, psaPop, rawPL, risk) {
+  if (opt.isRaw) {
+    if (risk === 'conservative') return 'In conservative mode, we require grading EV to exceed your raw sale by 15% before recommending submission. None of the grading options clear that threshold. Selling raw is your safest outcome.';
+    return 'None of the grading options produce a better expected return than selling this card raw. The grading fees and probability of receiving a lower-than-hoped grade make submission a negative EV decision right now.';
+  }
+  const parts = [];
+  if (opt.label === 'PSA')
+    parts.push('PSA offers the largest buyer pool and fastest resale of any grading company.');
+  if (opt.label === 'CGC')
+    parts.push('CGC offers more consistent grading on modern Pokémon cards at lower fees than PSA.');
+  if (opt.label === 'BGS')
+    parts.push('BGS subgrades tell the full condition story and support long-term value appreciation.');
+  if (opt.label === 'PSA via GameStop')
+    parts.push('GameStop\'s PSA program offers the lowest cost per card for this price range.');
+  if (psaPop !== null && psaPop < 50)
+    parts.push(`The low PSA 10 population (${psaPop}) means your 10 would have real scarcity premium.`);
+  if (goal === 'flip') parts.push('Given your quick-flip goal, PSA slabs move fastest on the secondary market.');
+  if (goal === 'hold') parts.push('For a long-term hold, the graded premium will likely grow as raw supply decreases.');
+  return parts.join(' ') || 'Based on your pre-grade score, market prices, and goals, this option gives you the best expected return.';
+}
+
+// ─── SESSION HISTORY ──────────────────────────────────────────────────────────
+const sessionHistory = [];
+
+function saveToHistory(cardName, cardType, pg, recommendation, pl) {
+  const cardTypeLabel = document.getElementById('cardType');
+  const typeText = cardTypeLabel.options[cardTypeLabel.selectedIndex]?.text || cardType;
+  const set = document.getElementById('cardSet').value || '—';
+  sessionHistory.unshift({
+    id: Date.now(),
+    name: cardName || 'Unnamed Card',
+    set,
+    typeText,
+    pg,
+    recommendation,
+    pl,
+    timestamp: new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
+  });
+  renderHistory();
+}
+
+function renderHistory() {
+  const section = document.getElementById('historySection');
+  const list    = document.getElementById('historyList');
+  if (!sessionHistory.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  list.innerHTML = '';
+  const ul = document.createElement('div');
+  ul.className = 'history-list';
+  sessionHistory.forEach(item => {
+    const pgColor = item.pg >= 9.5 ? 'var(--green)'
+                  : item.pg >= 8.5 ? 'var(--amber)'
+                  : 'var(--red)';
+    const plColor = item.pl >= 0 ? 'var(--green)' : 'var(--red)';
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.title = 'Click to view this evaluation';
+    div.innerHTML = `
+      <div>
+        <div class="history-item-name">${item.name}</div>
+        <div class="history-item-sub">${item.set} &nbsp;·&nbsp; ${item.typeText} &nbsp;·&nbsp; ${item.timestamp}</div>
+      </div>
+      <div class="history-item-pg" style="color:${pgColor}">${item.pg.toFixed(1)}</div>
+      <div class="history-item-rec">${item.recommendation}</div>
+      <div class="history-item-pl" style="color:${plColor}">${fmt(item.pl)}</div>
+    `;
+    ul.appendChild(div);
+  });
+  list.appendChild(ul);
+}
+
+function clearHistory() {
+  sessionHistory.length = 0;
+  renderHistory();
+}
+
+function restart() {
+  // Reset state
+  state.yn = {};
+  state.centering = {};
+  // Reset form fields
+  document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = '');
+  document.querySelectorAll('.yn-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+  document.getElementById('darkBorderCheck').style.display = 'none';
+  document.getElementById('msrpWarning').style.display = 'none';
+  document.getElementById('centeringFeedback').style.display = 'none';
+  // Reset ratios
+  ['ratioLR','ratioTB','ratioBackLR','ratioBackTB'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = '—'; el.style.color = 'var(--text3)'; }
+  });
+  ['barLR','barTB','barBackLR','barBackTB'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.width = '0';
+  });
+  goToPhase(1);
+}
+</script>
+</body>
+</html>
