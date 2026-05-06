@@ -1071,21 +1071,15 @@
 
       <div class="field-row three">
         <div class="field">
-          <label>What did you pay? <span>(for the pack or card)</span></label>
+          <label>Total Card Cost <span>(for the pack or card)</span></label>
           <div class="prefix-input"><span>$</span>
             <input type="number" id="pricePaid" placeholder="0.00" step="0.01" min="0" onchange="updateMsrpWarning()" />
           </div>
         </div>
         <div class="field" id="msrpField">
-          <label>Normal retail price (MSRP) <span>approx.</span></label>
+          <label>Market price <span>approx.</span></label>
           <div class="prefix-input"><span>$</span>
             <input type="number" id="msrpPrice" placeholder="0.00" step="0.01" min="0" onchange="updateMsrpWarning()" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Your cost basis for this card</label>
-          <div class="prefix-input"><span>$</span>
-            <input type="number" id="acquisitionCost" placeholder="0.00" step="0.01" min="0" />
           </div>
         </div>
       </div>
